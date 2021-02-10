@@ -1,0 +1,66 @@
+-- Create table for import file csv download from rki--
+
+CREATE TABLE data_covid2019  (
+    ObjectId VARCHAR(255) PRIMARY KEY,
+    IdBundesland VARCHAR(255),
+    Bundesland VARCHAR(255),
+    Landkreis VARCHAR(255),
+    Altersgruppe VARCHAR(255),
+    Geschlecht VARCHAR(255),
+	AnzahlFall numeric,
+    AnzahlTodesfall numeric, 
+    Meldedatum VARCHAR(255),
+    IdLandkreis VARCHAR(255),
+    Datenstand VARCHAR(255) ,
+    NeuerFall numeric,
+    NeuerTodesfall numeric,
+    Refdatum VARCHAR(255),
+    NeuGenesen numeric,
+    AnzahlGenesen numeric,
+    IstErkrankungsbeginn VARCHAR(255),
+    Altersgruppe2 VARCHAR(255)
+	
+);
+
+copy data_covid2019 FROM  'C:\Users\Public\RKI_COVID19.csv' delimiter ',' CSV HEADER;
+
+-- Trasfrom variables in date--
+Alter table data_covid2019 alter column Meldedatum type date using to_date (Meldedatum, 'yyyy/mm/dd');
+Alter table data_covid2019 alter column refdatum type date  using to_date (refdatum, 'yyyy/mm/dd');
+Alter table data_covid2019 alter column datenstand type date using to_date (datenstand, 'dd/mm/yyyy');
+
+-- Query 1 question --
+
+create table overview as(
+select to_char(Meldedatum, 'yyyy/mm'),sum (Anzahlfall) as sumFall, sum(AnzahlGenesen) as sumGenesen, sum(AnzahlTodesfall) as sumTodesfall
+from data_covid2019
+where bundesland = 'Bayern' and ( to_char(Meldedatum, 'yyyy/mm') >= '2020/03' and to_char(Meldedatum, 'yyyy/mm')  <=  '2021/02')
+group by to_char(Meldedatum, 'yyyy/mm'));
+
+-- Query 2 question --
+
+create table develop as(
+select Altersgruppe, to_char(Meldedatum, 'yyyy/mm'), sum(AnzahlTodesfall) as sumTodesfall,sum (Anzahlfall) as sumFall
+from data_covid2019
+where bundesland = 'Bayern' and ( to_char(Meldedatum, 'yyyy/mm') >= '2020/03' and to_char(Meldedatum, 'yyyy/mm')  <=  '2021/02')
+group by  to_char(Meldedatum, 'yyyy/mm'),Altersgruppe);
+
+
+select to_char,
+sum (sumFall) over(order by to_char ) as cumulateFall
+,sum (sumGenesen) over(order by to_char ) as cumulateGenesen
+from overview;
+
+select to_char, Altersgruppe,
+sum (sumTodesfall) over(partition by Altersgruppe order by to_char) as cumulateTodesfall
+from overview;
+
+----Select variables for create csv and to work on visualization tool
+
+select to_char, Altersgruppe, sumTodesfall,
+sum (sumTodesfall) over(partition by Altersgruppe order by to_char) as cumulateTodesfall,
+sum (sumFall) over(partition by Altersgruppe order by to_char) as cumulatefall
+from develop;
+
+select to_char, Altersgruppe, sumTodesfall, sumFall
+from develop;
